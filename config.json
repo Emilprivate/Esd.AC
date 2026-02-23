@@ -1,0 +1,29 @@
+{
+  "menuTitle": "Esd.AC",
+  "settings": {
+    "bAimbot": false,
+    "bESP": false,
+    "bSnaplines": false,
+    "espShowTeammates": false,
+    "espShowEnemies": true,
+    "aimbotTargetTeammates": false,
+    "aimbotTargetEnemies": true,
+    "aimbotPriorityMode": 0,
+    "aimbotFOV": 10.0,
+    "aimbotSmooth": 1.0
+  },
+  "hotkeys": {
+    "menuToggleKey": 45,
+    "unloadPrimaryKey": 46,
+    "unloadSecondaryKey": 35
+  },
+  "offsets": {
+    "LocalPlayer": "0x0018AC00",
+    "LocalPlayerAlt": "0x0017E0A8",
+    "EntityList": "0x0018AC04",
+    "Fov": "0x0018A7CC",
+    "ViewMatrix": "0x0017DFD0",
+    "PlayerCount": "0x0018AC0C",
+    "Team": "0x30C"
+  }
+}
