@@ -2,10 +2,12 @@
 
 #include "imgui.h"
 
+
 namespace {
     constexpr float kFeetOffset = 4.5f;
-    constexpr float kBoxThickness = 1.5f;
     constexpr float kSnaplineThickness = 1.0f;
+    constexpr float kBarWidth = 4.0f;
+    constexpr float kBarPadding = 2.0f;
 
     float AbsFloat(float value) {
         return (value >= 0.0f) ? value : -value;
@@ -13,6 +15,10 @@ namespace {
 
     void DrawLine(const ImVec2& from, const ImVec2& to, ImU32 color, float thickness) {
         ImGui::GetBackgroundDrawList()->AddLine(from, to, color, thickness);
+    }
+
+    void DrawFilledRect(const ImVec2& from, const ImVec2& to, ImU32 color) {
+        ImGui::GetBackgroundDrawList()->AddRectFilled(from, to, color);
     }
 
     void DrawBox(const ImVec2& top, const ImVec2& bottom, ImU32 color, float thickness) {
@@ -29,6 +35,7 @@ namespace {
 
         ImGui::GetBackgroundDrawList()->AddRect(topLeft, bottomRight, color, 0.0f, 0, thickness);
     }
+
 
     bool ProjectW2SLayout(
         const Vector3& worldPos,
@@ -152,6 +159,23 @@ bool EspFeature::TryDrawEntityEsp(
     const float* viewMatrix,
     int screenWidth,
     int screenHeight,
+    bool isTeammate,
+    bool hasTeamData,
+    int entityHealth,
+    int entityArmor,
+    const std::string& entityName,
+    float entityDistance,
+    bool showName,
+    bool showHealth,
+    bool showArmor,
+    bool showDistance,
+    bool showHealthValue,
+    bool showArmorValue,
+    bool useTeamColors,
+    int infoPosition,
+    bool boxFilled,
+    float boxThickness,
+    float boxFillAlpha,
     bool drawSnaplines,
     int& entitiesW2S) {
 
@@ -175,8 +199,109 @@ bool EspFeature::TryDrawEntityEsp(
 
     entitiesW2S++;
 
-    const ImU32 color = IM_COL32(255, 0, 0, 255);
-    DrawBox(ImVec2(screenHeadPt.x, screenHeadPt.y), ImVec2(screenFeetPt.x, screenFeetPt.y), color, kBoxThickness);
+    ImU32 color = IM_COL32(255, 0, 0, 255);
+    if (useTeamColors && hasTeamData) {
+        color = isTeammate ? IM_COL32(80, 200, 120, 255) : IM_COL32(220, 80, 80, 255);
+    }
+    const float boxWidth = boxHeight / 2.0f;
+    const float boxLeft = screenHeadPt.x - boxWidth / 2.0f;
+    const float boxRight = screenHeadPt.x + boxWidth / 2.0f;
+
+    if (boxFilled && boxFillAlpha > 0.0f) {
+        const ImU32 fillColor = IM_COL32(20, 20, 20, static_cast<int>(boxFillAlpha * 255.0f));
+        DrawFilledRect(ImVec2(boxLeft, screenHeadPt.y), ImVec2(boxRight, screenFeetPt.y), fillColor);
+    }
+
+    DrawBox(ImVec2(screenHeadPt.x, screenHeadPt.y), ImVec2(screenFeetPt.x, screenFeetPt.y), color, boxThickness);
+
+    if (showHealth) {
+        const float health = static_cast<float>(entityHealth);
+        const float healthRatio = (health > 0.0f) ? (health / 100.0f) : 0.0f;
+        const float clamped = (healthRatio > 1.0f) ? 1.0f : (healthRatio < 0.0f ? 0.0f : healthRatio);
+
+        const ImVec2 barTop(boxLeft - kBarPadding - kBarWidth, screenHeadPt.y);
+        const ImVec2 barBottom(boxLeft - kBarPadding, screenFeetPt.y);
+        DrawFilledRect(barTop, barBottom, IM_COL32(20, 20, 20, 200));
+
+        const float filledHeight = boxHeight * clamped;
+        const ImVec2 filledTop(boxLeft - kBarPadding - kBarWidth, screenFeetPt.y - filledHeight);
+        const ImVec2 filledBottom(boxLeft - kBarPadding, screenFeetPt.y);
+        DrawFilledRect(filledTop, filledBottom, IM_COL32(80, 220, 120, 255));
+    }
+
+    if (showArmor) {
+        const float armor = static_cast<float>(entityArmor);
+        const float armorRatio = (armor > 0.0f) ? (armor / 100.0f) : 0.0f;
+        const float clamped = (armorRatio > 1.0f) ? 1.0f : (armorRatio < 0.0f ? 0.0f : armorRatio);
+
+        const ImVec2 barTop(boxRight + kBarPadding, screenHeadPt.y);
+        const ImVec2 barBottom(boxRight + kBarPadding + kBarWidth, screenFeetPt.y);
+        DrawFilledRect(barTop, barBottom, IM_COL32(20, 20, 20, 200));
+
+        const float filledHeight = boxHeight * clamped;
+        const ImVec2 filledTop(boxRight + kBarPadding, screenFeetPt.y - filledHeight);
+        const ImVec2 filledBottom(boxRight + kBarPadding + kBarWidth, screenFeetPt.y);
+        DrawFilledRect(filledTop, filledBottom, IM_COL32(80, 140, 220, 255));
+    }
+
+    if (showName || showDistance || showHealthValue || showArmorValue) {
+        ImVec2 textPos{};
+        const float lineHeight = ImGui::GetFontSize() + 2.0f;
+        const float startXCenter = screenHeadPt.x;
+
+        switch (infoPosition) {
+            case 1: {
+                textPos = ImVec2(boxRight + kBarPadding + kBarWidth + 6.0f, screenHeadPt.y);
+                break;
+            }
+            case 2: {
+                textPos = ImVec2(startXCenter, screenFeetPt.y + 4.0f);
+                break;
+            }
+            case 0:
+            default: {
+                textPos = ImVec2(startXCenter, screenHeadPt.y - 16.0f);
+                break;
+            }
+        }
+
+        auto drawLine = [&](const std::string& text) {
+            if (text.empty()) {
+                return;
+            }
+
+            ImVec2 pos = textPos;
+            if (infoPosition != 1) {
+                const ImVec2 textSize = ImGui::CalcTextSize(text.c_str());
+                pos.x -= textSize.x * 0.5f;
+            }
+
+            ImGui::GetBackgroundDrawList()->AddText(pos, IM_COL32(240, 240, 240, 255), text.c_str());
+            textPos.y += lineHeight;
+        };
+
+        if (showName && !entityName.empty()) {
+            drawLine(entityName);
+        }
+
+        if (showDistance) {
+            char buffer[32]{};
+            std::snprintf(buffer, sizeof(buffer), "%.1fm", entityDistance);
+            drawLine(buffer);
+        }
+
+        if (showHealthValue) {
+            char buffer[24]{};
+            std::snprintf(buffer, sizeof(buffer), "HP: %d", entityHealth);
+            drawLine(buffer);
+        }
+
+        if (showArmorValue) {
+            char buffer[24]{};
+            std::snprintf(buffer, sizeof(buffer), "AR: %d", entityArmor);
+            drawLine(buffer);
+        }
+    }
 
     if (drawSnaplines) {
         DrawLine(

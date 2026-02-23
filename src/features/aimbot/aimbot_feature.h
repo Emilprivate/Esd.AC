@@ -20,6 +20,8 @@ namespace AimbotFeature {
         const Player* localPlayer,
         Player* entity,
         Player* lockedTarget,
+        int targetBoneMode,
+        int entityHealth,
         TargetPriority priority,
         float maxFov,
         float& bestScore,

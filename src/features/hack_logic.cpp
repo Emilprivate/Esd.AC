@@ -6,6 +6,7 @@
 
 #include "imgui.h"
 #include <windows.h>
+#include <string>
 
 namespace {
     constexpr int kMaxPlayers = 32;
@@ -44,6 +45,38 @@ namespace {
         return (address + size) <= regionEnd;
     }
 
+    bool IsWritableAddress(uintptr_t address, size_t size) {
+        if (address == 0 || size == 0) {
+            return false;
+        }
+
+        MEMORY_BASIC_INFORMATION mbi{};
+        if (!VirtualQuery(reinterpret_cast<LPCVOID>(address), &mbi, sizeof(mbi))) {
+            return false;
+        }
+
+        if (mbi.State != MEM_COMMIT) {
+            return false;
+        }
+
+        if ((mbi.Protect & PAGE_GUARD) || (mbi.Protect & PAGE_NOACCESS)) {
+            return false;
+        }
+
+        const bool writable =
+            (mbi.Protect & PAGE_READWRITE) ||
+            (mbi.Protect & PAGE_WRITECOPY) ||
+            (mbi.Protect & PAGE_EXECUTE_READWRITE) ||
+            (mbi.Protect & PAGE_EXECUTE_WRITECOPY);
+
+        if (!writable) {
+            return false;
+        }
+
+        const uintptr_t regionEnd = reinterpret_cast<uintptr_t>(mbi.BaseAddress) + mbi.RegionSize;
+        return (address + size) <= regionEnd;
+    }
+
     template <typename T>
     bool SafeRead(uintptr_t address, T& outValue) {
         if (!IsReadableAddress(address, sizeof(T))) {
@@ -52,6 +85,22 @@ namespace {
 
         __try {
             outValue = *reinterpret_cast<T*>(address);
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {
+            return false;
+        }
+
+        return true;
+    }
+
+    template <typename T>
+    bool SafeWrite(uintptr_t address, const T& value) {
+        if (!IsWritableAddress(address, sizeof(T))) {
+            return false;
+        }
+
+        __try {
+            *reinterpret_cast<T*>(address) = value;
         }
         __except (EXCEPTION_EXECUTE_HANDLER) {
             return false;
@@ -101,6 +150,7 @@ namespace {
 
         return true;
     }
+
 
     bool ResolveViewMatrix(uintptr_t moduleBase, float*& outMatrixPtr, bool& outLooksValid) {
         outMatrixPtr = nullptr;
@@ -191,6 +241,54 @@ namespace {
 
         return nullptr;
     }
+
+    bool ReadIntOffset(const Player* player, uintptr_t offset, int fallbackValue, int& outValue) {
+        if (!player) {
+            return false;
+        }
+
+        if (offset == 0) {
+            outValue = fallbackValue;
+            return true;
+        }
+
+        const uintptr_t address = reinterpret_cast<uintptr_t>(player) + offset;
+        if (!SafeRead(address, outValue)) {
+            outValue = fallbackValue;
+            return false;
+        }
+
+        return true;
+    }
+
+    std::string ReadNameOffset(const Player* player) {
+        if (!player) {
+            return "";
+        }
+
+        constexpr size_t kNameMaxLen = 16;
+        struct NameBuffer { char value[kNameMaxLen]; };
+
+        NameBuffer buffer{};
+        bool readOk = false;
+        if (Offsets::Name != 0) {
+            const uintptr_t address = reinterpret_cast<uintptr_t>(player) + Offsets::Name;
+            readOk = SafeRead(address, buffer);
+        }
+
+        if (!readOk) {
+            for (size_t i = 0; i < kNameMaxLen; ++i) {
+                buffer.value[i] = player->name[i];
+            }
+        }
+
+        size_t length = 0;
+        while (length < kNameMaxLen && buffer.value[length] != '\0') {
+            ++length;
+        }
+
+        return std::string(buffer.value, length);
+    }
 }
 
 void RunHackLogic() {
@@ -210,7 +308,12 @@ void RunHackLogic() {
     }
 
     DebugState::localPlayerPtr = reinterpret_cast<uintptr_t>(localPlayer);
-    if (!localPlayer || !localPlayer->IsValid()) return;
+    int localHealth = 0;
+    ReadIntOffset(localPlayer, Offsets::Health, localPlayer->health, localHealth);
+    if (!localPlayer || localHealth <= 0 || localHealth > 100) return;
+
+    const Vector3 localHeadPos = localPlayer->GetHeadPos();
+
 
     int localTeamId = -1;
     DebugState::teamDataAvailable = TryReadTeamId(localPlayer, localTeamId);
@@ -244,9 +347,15 @@ void RunHackLogic() {
         if (entity && !IsReadableAddress(reinterpret_cast<uintptr_t>(entity), sizeof(Player))) {
             continue;
         }
-        if (!entity || !entity->IsValid() || entity == localPlayer) {
+        int entityHealth = 0;
+        ReadIntOffset(entity, Offsets::Health, entity ? entity->health : 0, entityHealth);
+        if (!entity || entity == localPlayer || entityHealth <= 0 || entityHealth > 100) {
             continue;
         }
+    int entityArmor = 0;
+    ReadIntOffset(entity, Offsets::Armor, entity->armor, entityArmor);
+    const std::string entityName = ReadNameOffset(entity);
+    const float entityDistance = localHeadPos.Distance(entity->GetHeadPos());
 
         if (!DebugState::entityListBase && resolvedListBase) {
             DebugState::entityListBase = resolvedListBase;
@@ -269,7 +378,30 @@ void RunHackLogic() {
             }
 
             if (shouldDrawEsp) {
-                EspFeature::TryDrawEntityEsp(entity, viewMatrix, screenWidth, screenHeight, Settings::bSnaplines, DebugState::entitiesW2S);
+                EspFeature::TryDrawEntityEsp(
+                    entity,
+                    viewMatrix,
+                    screenWidth,
+                    screenHeight,
+                    isTeammate,
+                    hasEntityTeamData,
+                    entityHealth,
+                    entityArmor,
+                    entityName,
+                    entityDistance,
+                    Settings::espShowName,
+                    Settings::espShowHealth,
+                    Settings::espShowArmor,
+                    Settings::espShowDistance,
+                    Settings::espShowHealthValue,
+                    Settings::espShowArmorValue,
+                    Settings::espUseTeamColors,
+                    Settings::espInfoPosition,
+                    Settings::espBoxFilled,
+                    Settings::espBoxThickness,
+                    Settings::espBoxFillAlpha,
+                    Settings::bSnaplines,
+                    DebugState::entitiesW2S);
             }
         }
 
@@ -288,6 +420,8 @@ void RunHackLogic() {
                     localPlayer,
                     entity,
                     lockedTarget,
+                    Settings::aimbotTargetBone,
+                    entityHealth,
                     static_cast<AimbotFeature::TargetPriority>(Settings::aimbotPriorityMode),
                     Settings::aimbotFOV,
                     bestTargetScore,

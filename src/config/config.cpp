@@ -200,14 +200,46 @@ namespace {
             TryApplyValue(section, "bSnaplines", ParseBool, Settings::bSnaplines);
             TryApplyValue(section, "espShowTeammates", ParseBool, Settings::espShowTeammates);
             TryApplyValue(section, "espShowEnemies", ParseBool, Settings::espShowEnemies);
+            TryApplyValue(section, "espShowName", ParseBool, Settings::espShowName);
+            TryApplyValue(section, "espShowHealth", ParseBool, Settings::espShowHealth);
+            TryApplyValue(section, "espShowArmor", ParseBool, Settings::espShowArmor);
+            TryApplyValue(section, "espUseTeamColors", ParseBool, Settings::espUseTeamColors);
+            TryApplyValue(section, "espInfoPosition", ParseInt, Settings::espInfoPosition);
+            TryApplyValue(section, "espShowDistance", ParseBool, Settings::espShowDistance);
+            TryApplyValue(section, "espShowHealthValue", ParseBool, Settings::espShowHealthValue);
+            TryApplyValue(section, "espShowArmorValue", ParseBool, Settings::espShowArmorValue);
+            TryApplyValue(section, "espBoxFilled", ParseBool, Settings::espBoxFilled);
+            TryApplyValue(section, "espBoxThickness", ParseFloat, Settings::espBoxThickness);
+            TryApplyValue(section, "espBoxFillAlpha", ParseFloat, Settings::espBoxFillAlpha);
             TryApplyValue(section, "aimbotTargetTeammates", ParseBool, Settings::aimbotTargetTeammates);
             TryApplyValue(section, "aimbotTargetEnemies", ParseBool, Settings::aimbotTargetEnemies);
             TryApplyValue(section, "aimbotPriorityMode", ParseInt, Settings::aimbotPriorityMode);
+            TryApplyValue(section, "aimbotTargetBone", ParseInt, Settings::aimbotTargetBone);
             TryApplyValue(section, "aimbotFOV", ParseFloat, Settings::aimbotFOV);
             TryApplyValue(section, "aimbotSmooth", ParseFloat, Settings::aimbotSmooth);
 
             if (Settings::aimbotPriorityMode < 0 || Settings::aimbotPriorityMode > 2) {
                 Settings::aimbotPriorityMode = 0;
+            }
+
+            if (Settings::aimbotTargetBone < 0 || Settings::aimbotTargetBone > 2) {
+                Settings::aimbotTargetBone = 0;
+            }
+
+            if (Settings::espInfoPosition < 0 || Settings::espInfoPosition > 2) {
+                Settings::espInfoPosition = 0;
+            }
+            if (Settings::espBoxThickness < 0.5f) {
+                Settings::espBoxThickness = 0.5f;
+            }
+            if (Settings::espBoxThickness > 6.0f) {
+                Settings::espBoxThickness = 6.0f;
+            }
+            if (Settings::espBoxFillAlpha < 0.0f) {
+                Settings::espBoxFillAlpha = 0.0f;
+            }
+            if (Settings::espBoxFillAlpha > 0.9f) {
+                Settings::espBoxFillAlpha = 0.9f;
             }
         }
 
@@ -226,6 +258,21 @@ namespace {
             TryApplyValue(section, "ViewMatrix", ParseUintPtr, Offsets::ViewMatrix);
             TryApplyValue(section, "PlayerCount", ParseUintPtr, Offsets::PlayerCount);
             TryApplyValue(section, "Team", ParseUintPtr, Offsets::Team);
+            TryApplyValue(section, "CameraX", ParseUintPtr, Offsets::CameraX);
+            TryApplyValue(section, "CameraY", ParseUintPtr, Offsets::CameraY);
+            TryApplyValue(section, "Health", ParseUintPtr, Offsets::Health);
+            TryApplyValue(section, "Armor", ParseUintPtr, Offsets::Armor);
+            TryApplyValue(section, "Name", ParseUintPtr, Offsets::Name);
+            TryApplyValue(section, "AmmoPistol", ParseUintPtr, Offsets::AmmoPistol);
+            TryApplyValue(section, "AmmoShotgun", ParseUintPtr, Offsets::AmmoShotgun);
+            TryApplyValue(section, "AmmoSubmachine", ParseUintPtr, Offsets::AmmoSubmachine);
+            TryApplyValue(section, "AmmoSniper", ParseUintPtr, Offsets::AmmoSniper);
+            TryApplyValue(section, "AmmoAssaultRifle", ParseUintPtr, Offsets::AmmoAssaultRifle);
+            TryApplyValue(section, "AmmoGrenade", ParseUintPtr, Offsets::AmmoGrenade);
+            TryApplyValue(section, "FastFireShotgun", ParseUintPtr, Offsets::FastFireShotgun);
+            TryApplyValue(section, "FastFireSniper", ParseUintPtr, Offsets::FastFireSniper);
+            TryApplyValue(section, "FastFireAssaultRifle", ParseUintPtr, Offsets::FastFireAssaultRifle);
+            TryApplyValue(section, "AutoShoot", ParseUintPtr, Offsets::AutoShoot);
         }
     }
 }

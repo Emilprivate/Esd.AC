@@ -1,7 +1,11 @@
 #include "features/aimbot/aimbot_feature.h"
 
+#include <algorithm>
+
 namespace {
     constexpr float kStickyTargetFovMultiplier = 0.8f;
+    constexpr float kChestOffsetFromHead = 1.35f;
+    constexpr float kPelvisOffsetFromHead = 2.70f;
 
     float NormalizeYaw(float yaw) {
         while (yaw > 180.0f) yaw -= 360.0f;
@@ -14,12 +18,33 @@ namespace {
         const float deltaPitch = target.y - current.y;
         return std::sqrt(deltaYaw * deltaYaw + deltaPitch * deltaPitch);
     }
+
+    Vector3 GetTargetBonePosition(const Player* entity, int targetBoneMode) {
+        if (!entity) {
+            return {};
+        }
+
+        const Vector3 head = entity->GetHeadPos();
+
+        switch (targetBoneMode) {
+            case 1: {
+                return { head.x, head.y, head.z - kChestOffsetFromHead };
+            }
+            case 2:
+                return { head.x, head.y, head.z - kPelvisOffsetFromHead };
+            case 0:
+            default:
+                return head;
+        }
+    }
 }
 
 void AimbotFeature::ConsiderEntityTarget(
     const Player* localPlayer,
     Player* entity,
     Player* lockedTarget,
+    int targetBoneMode,
+    int entityHealth,
     TargetPriority priority,
     float maxFov,
     float& bestScore,
@@ -32,9 +57,9 @@ void AimbotFeature::ConsiderEntityTarget(
     const Vector3 localHeadPos = localPlayer->GetHeadPos();
     const Vector3 localViewAnglesStandard = localPlayer->GetViewAngles();
     const Vector3 localViewAnglesSwapped = localPlayer->GetViewAnglesSwapped();
-    const Vector3 entityHeadPos = entity->GetHeadPos();
+    const Vector3 targetBonePos = GetTargetBonePosition(entity, targetBoneMode);
 
-    const Vector3 targetAngle = CalcAngle(localHeadPos, entityHeadPos);
+    const Vector3 targetAngle = CalcAngle(localHeadPos, targetBonePos);
     const float fovStandard = AngleDistance(localViewAnglesStandard, targetAngle);
     const float fovSwapped = AngleDistance(localViewAnglesSwapped, targetAngle);
     const bool useSwapped = (fovSwapped < fovStandard);
@@ -47,11 +72,11 @@ void AimbotFeature::ConsiderEntityTarget(
     float score = fov;
     switch (priority) {
         case TargetPriority::NearestDistance: {
-            score = localHeadPos.Distance(entityHeadPos);
+            score = localHeadPos.Distance(targetBonePos);
             break;
         }
         case TargetPriority::LowestHP: {
-            score = static_cast<float>(entity->health);
+            score = static_cast<float>(entityHealth);
             break;
         }
         case TargetPriority::NearestCrosshair:
